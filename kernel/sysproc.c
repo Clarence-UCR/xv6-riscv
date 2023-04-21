@@ -6,6 +6,30 @@
 #include "spinlock.h"
 #include "proc.h"
 
+int sys_count = 0;
+
+uint64
+sys_increase_syscall_count()
+{
+  sys_count++;
+  return sys_count;
+}
+
+uint64
+sys_info(void)
+{
+  int n;
+  int result;
+  argint(0, &n);
+  if (n == 1) 
+  {
+    result = sys_count;
+  } else {
+    result = info(n);
+  }
+  return result;
+}
+
 uint64
 sys_exit(void)
 {

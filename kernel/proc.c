@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "kalloc.h"
 
 struct cpu cpus[NCPU];
 
@@ -41,6 +42,36 @@ proc_mapstacks(pagetable_t kpgtbl)
     uint64 va = KSTACK((int) (p - proc));
     kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
   }
+}
+
+int 
+info(int n) 
+{
+  if (n == 0) {
+    // total active process
+    int count = 0;
+    struct proc *p;
+  
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if (p->state != UNUSED) {
+        count++;
+      }
+      release(&p->lock);
+    }
+
+    return count;
+  }	
+
+  if (n == 2) {
+    // free memory pages
+    int result;
+    result = getfreepagescount();
+    return result;
+  }
+
+  return -1;
+	
 }
 
 // initialize the proc table.
