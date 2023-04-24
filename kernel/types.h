@@ -8,3 +8,9 @@ typedef unsigned int  uint32;
 typedef unsigned long uint64;
 
 typedef uint64 pde_t;
+struct pinfo {
+  int ppid;                // parent process ID
+  int syscall_count;       // number of syscalls made by this process
+  int page_usage;          // number of memory pages used by this process
+};
+

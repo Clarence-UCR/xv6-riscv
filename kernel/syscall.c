@@ -62,11 +62,20 @@ argint(int n, int *ip)
 // Retrieve an argument as a pointer.
 // Doesn't check for legality, since
 // copyin/copyout will do that.
-void
+// Change the argaddr() function definition to:
+int
 argaddr(int n, uint64 *ip)
 {
-  *ip = argraw(n);
+  int result = argraw(n);
+  if (ip != 0) {
+    *ip = result;
+  }
+  return result;
 }
+
+// In sys_procinfo(), change the if statement to:
+
+
 
 // Fetch the nth word-sized system call argument as a null-terminated string.
 // Copies into buf, at most max.
@@ -103,6 +112,8 @@ extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_info(void);
 extern uint64 sys_increase_syscall_count(void);
+extern uint64 sys_procinfo(void);
+
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -128,7 +139,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-[SYS_info]    sys_info
+[SYS_info]    sys_info,
+[SYS_procinfo] sys_procinfo
+
 };
 
 void
@@ -143,12 +156,32 @@ syscall(void)
     // and store its return value in p->trapframe->a0
     p->trapframe->a0 = syscalls[num]();
 
-    //record system call count
-    sys_increase_syscall_count();
+    // Increment the syscall_count for the current process
+    p->syscall_count++;
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
 }
+
+
+uint64 sys_procinfo(void) {
+    struct pinfo *input;
+    if (argaddr(0, (uint64 *)&input) < 0)
+        return -1;
+
+    struct proc *curproc = myproc();
+
+    struct pinfo output;
+    output.ppid = curproc->parent->pid;
+    output.syscall_count = curproc->syscall_count;
+    output.page_usage = curproc->page_usage;
+
+    if (copyout(curproc->pagetable, (uint64)input, (char *)&output, sizeof(output)) < 0)
+        return -1;
+
+    return 0;
+}
+
 

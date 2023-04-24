@@ -176,6 +176,10 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  
+  p->syscall_count = 0;
+  p->page_usage = p->sz / PGSIZE;
+
 
   return p;
 }
