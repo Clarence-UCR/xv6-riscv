@@ -156,6 +156,8 @@ syscall(void)
     // and store its return value in p->trapframe->a0
     p->trapframe->a0 = syscalls[num]();
 
+    // Increase the global system call
+    sys_increase_syscall_count();
     // Increment the syscall_count for the current process
     p->syscall_count++;
   } else {
