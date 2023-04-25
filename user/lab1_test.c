@@ -45,7 +45,11 @@ int main(int argc, char *argv[]) {
 
       if (pid == 0) {
         //printf("Child process\n");
-        malloc(mem);
+        struct pinfo param;
+        for (int j = 0; j < 10; j++)
+          procinfo(&param); // calls 10 times
+        printf("[procinfo %d] ppid: %d, syscalls: %d, page usage: %d\n",
+          getpid(), param.ppid, param.syscall_count, param.page_usage);
         while(1);
       } else if (pid > 0) {
         //printf("Parent process\n");

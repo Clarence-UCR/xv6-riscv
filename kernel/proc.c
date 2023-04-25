@@ -178,8 +178,6 @@ found:
   p->context.sp = p->kstack + PGSIZE;
   
   p->syscall_count = 0;
-  p->page_usage = p->sz / PGSIZE;
-
 
   return p;
 }
@@ -346,6 +344,7 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
+  np->page_usage = np->sz / PGSIZE;
 
   release(&np->lock);
 
