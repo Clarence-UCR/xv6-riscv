@@ -480,6 +480,13 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  #if defined(LOTTERY) 
+    printf("LThis is the log for initialize scheduler LOTTERY\n");
+  #elif defined(STRIDE)
+    printf("SThis is the log for initialize scheduler STRIDE\n");
+  #else
+    printf("This is the log for initialize scheduler RR\n");
+  #endif
   
   c->proc = 0;
   for(;;){
