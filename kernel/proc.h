@@ -107,6 +107,8 @@ struct proc {
   
   int syscall_count;
   int page_usage;
+  int tickets;
+  int ticks;
 
 };
 

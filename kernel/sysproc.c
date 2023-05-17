@@ -16,6 +16,22 @@ sys_increase_syscall_count()
 }
 
 uint64
+sys_sched_statistics()
+{	
+  sched_statistics();
+  return 0;
+}
+
+uint64
+sys_sched_tickets(void)
+{
+  int tickets;
+  argint(0, &tickets);
+  sched_tickets(tickets);
+  return 0; 
+}
+
+uint64
 sys_info(void)
 {
   int n;

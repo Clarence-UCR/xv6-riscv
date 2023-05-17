@@ -44,6 +44,25 @@ proc_mapstacks(pagetable_t kpgtbl)
   }
 }
 
+void sched_statistics(void) {
+    struct proc *p;
+  
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if (p->state != UNUSED) {
+        printf("%d(%s): tickets: %d, ticks: %d \n", p->pid, p->name, p->tickets, p->ticks);
+      }
+      release(&p->lock);
+    }
+}
+
+void
+sched_tickets(int tickets)
+{
+    struct proc *curproc = myproc(); 
+    curproc->tickets = tickets; 
+}
+
 int 
 info(int n) 
 {
@@ -178,6 +197,7 @@ found:
   p->context.sp = p->kstack + PGSIZE;
   
   p->syscall_count = 0;
+  p->tickets = 10000;
 
   return p;
 }
@@ -468,47 +488,96 @@ wait(uint64 addr)
   }
 }
 
-// Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
-//  - swtch to start running that process.
-//  - eventually that process transfers control
+unsigned short lfsr = 0xACE1u;
+unsigned short bit;
+unsigned short random()
+{
+  bit = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 5)) & 1;
+  return lfsr = (lfsr >> 1) | (bit << 15);
+}
+
+//  Per-CPU process scheduler.
+//  Each CPU calls scheduler() after setting itself up.
+//  Scheduler never returns.  It loops, doing:
+//   - choose a process to run.
+//   - swtch to start running that process.
+//   - eventually that process transfers control
 //    via swtch back to the scheduler.
 void
 scheduler(void)
 {
+  
   struct proc *p;
   struct cpu *c = mycpu();
-  #if defined(LOTTERY) 
-    printf("LThis is the log for initialize scheduler LOTTERY\n");
-  #elif defined(STRIDE)
-    printf("SThis is the log for initialize scheduler STRIDE\n");
-  #else
-    printf("This is the log for initialize scheduler RR\n");
-  #endif
-  
   c->proc = 0;
+
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+    #if defined(LOTTERY) 
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
+      int total_tickets = 0;
+      for (p = proc; p < &proc[NPROC]; p++)
+      {
+        if (p->state == RUNNABLE)
+        {
+          total_tickets += p->tickets;
+        }
+      }
+
+      unsigned short winning_ticket = random() % total_tickets;
+
+      //printf("SThis is the log for Lottery tickets %d\n", total_tickets);
+
+      int sum = 0;
+      for (p = proc; p < &proc[NPROC]; p++) {
+          if (p->state == RUNNABLE) {
+              sum += p->tickets;
+              //printf("pid: %d, tickets: %d, sum: %d, win_tickets: %d, ticks: %d, status: %d \n", p->pid, p->tickets, sum, winning_ticket, p->ticks, p->state);
+              if (sum > winning_ticket) {
+                  break;
+              }
+          }
+      }
+
+      acquire(&p->lock);
+      if (p->state == RUNNABLE) {
+        //printf("winner pid: %d sum: %d, win_tickets: %d \n", p->pid, sum, winning_ticket);
+        c->proc = p;
+        p->state = RUNNING;
+        p->ticks++;
+        swtch(&c->context, &p->context);
+        //printf("finish running %d \n", p->pid);
         c->proc = 0;
       }
       release(&p->lock);
-    }
+
+    #elif defined(STRIDE)
+      printf("SThis is the log for initialize scheduler STRIDE\n");
+    #else
+      //printf("SThis is the log for initialize scheduler RR\n");
+      //Round Robin
+      for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == RUNNABLE) {
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          //printf("process status %d %d \n", p->state, p->pid);
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          //printf("process status done %d %d \n", p->state, p->pid);
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+        release(&p->lock);
+      }
+    #endif
+
   }
 }
 

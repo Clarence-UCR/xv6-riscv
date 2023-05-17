@@ -20,12 +20,11 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
     
-    printf("starting scheduler");
     for (int i = 0; i < n_proc; i++) {
-        //int n_tickets = atoi(argv[3+i]);
+        int n_tickets = atoi(argv[3+i]);
         ret = fork();
         if (ret == 0) { // child process
-            //sched_tickets(n_tickets);
+            sched_tickets(n_tickets);
             while(1); 
         }
         else { // parent
@@ -35,7 +34,7 @@ int main(int argc, char *argv[]) {
     }
 
     sleep(sleep_ticks);
-    //sched_statistics();
+    sched_statistics();
 
     for (int i = 0; i < n_proc; i++) 
         kill(proc_pid[i]);
