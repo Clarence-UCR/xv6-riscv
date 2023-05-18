@@ -1,4 +1,5 @@
 #include "types.h"
+#include <limits.h>
 #include "param.h"
 #include "memlayout.h"
 #include "riscv.h"
@@ -554,7 +555,34 @@ scheduler(void)
       release(&p->lock);
 
     #elif defined(STRIDE)
-      printf("SThis is the log for initialize scheduler STRIDE\n");
+      //printf("SThis is the log for initialize scheduler STRIDE\n");
+      int min_stride = INT_MAX;
+      int K = 10000;
+      struct proc *min_p = 0;
+      
+      for (p = proc; p < &proc[NPROC]; p++) {
+          if (p->state == RUNNABLE) {
+            if (p->stride < min_stride) {
+                min_stride = p->stride;
+                min_p = p;
+            }
+          }
+      }
+     
+      if (min_p != 0) {
+          acquire(&min_p->lock);
+          //printf("winning pid %d, p_stride %d, min_stride %d \n", min_p->pid, min_p->stride, min_stride);
+          if (min_p->state == RUNNABLE) {
+            min_p->stride += K / min_p->tickets;
+            c->proc = min_p;
+            min_p->state = RUNNING;
+            min_p->ticks++;
+            swtch(&c->context, &min_p->context);
+            c->proc = 0;
+          }
+          release(&min_p->lock);
+      }
+      
     #else
       //printf("SThis is the log for initialize scheduler RR\n");
       //Round Robin
