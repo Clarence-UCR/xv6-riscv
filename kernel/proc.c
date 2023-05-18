@@ -567,6 +567,16 @@ scheduler(void)
             }
           }
       }
+
+      for (p = proc; p < &proc[NPROC]; p++) {
+          if (p->pid > 3 && p->state != UNUSED) {
+             if (p->state != RUNNABLE) {
+                //printf("pid %d, state %d", p->pid, p->state);
+		min_p = 0;
+  		break;
+             }
+          }
+      }
      
       if (min_p != 0) {
           acquire(&min_p->lock);
