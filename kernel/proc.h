@@ -109,6 +109,7 @@ struct proc {
   int page_usage;
   int tickets;
   int stride;
+  int pass;
   int ticks;
 
 };

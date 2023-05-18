@@ -15,6 +15,7 @@ struct proc proc[NPROC];
 struct proc *initproc;
 
 int nextpid = 1;
+int K = 10000;
 struct spinlock pid_lock;
 
 extern void forkret(void);
@@ -60,8 +61,10 @@ void sched_statistics(void) {
 void
 sched_tickets(int tickets)
 {
-    struct proc *curproc = myproc(); 
-    curproc->tickets = tickets; 
+    struct proc *p = myproc(); 
+    p->tickets = tickets; 
+    p -> stride = K / p -> tickets;
+    p -> pass = p -> stride;
 }
 
 int 
@@ -199,6 +202,8 @@ found:
   
   p->syscall_count = 0;
   p->tickets = 10000;
+  p->stride = K / p->tickets;
+  p->pass = p->stride;
 
   return p;
 }
@@ -517,71 +522,88 @@ scheduler(void)
     intr_on();
 
     #if defined(LOTTERY) 
-
-      int total_tickets = 0;
-      for (p = proc; p < &proc[NPROC]; p++)
-      {
-        if (p->state == RUNNABLE)
-        {
-          total_tickets += p->tickets;
-        }
-      }
-
-      unsigned short winning_ticket = random() % total_tickets;
-
-      //printf("SThis is the log for Lottery tickets %d\n", total_tickets);
-
-      int sum = 0;
-      for (p = proc; p < &proc[NPROC]; p++) {
-          if (p->state == RUNNABLE) {
-              sum += p->tickets;
-              //printf("pid: %d, tickets: %d, sum: %d, win_tickets: %d, ticks: %d, status: %d \n", p->pid, p->tickets, sum, winning_ticket, p->ticks, p->state);
-              if (sum > winning_ticket) {
-                  break;
-              }
-          }
-      }
-
-      acquire(&p->lock);
-      if (p->state == RUNNABLE) {
-        //printf("winner pid: %d sum: %d, win_tickets: %d \n", p->pid, sum, winning_ticket);
-        c->proc = p;
-        p->state = RUNNING;
-        p->ticks++;
-        swtch(&c->context, &p->context);
-        //printf("finish running %d \n", p->pid);
-        c->proc = 0;
-      }
-      release(&p->lock);
+       int total_tickets = 0;
+       for (p = proc; p < &proc[NPROC]; p++)
+       {
+         if (p->state == RUNNABLE)
+         {
+           total_tickets += p->tickets;
+         }
+       }
+ 
+       unsigned short winning_ticket = random() % total_tickets;
+ 
+       //printf("SThis is the log for Lottery tickets %d\n", total_tickets);
+ 
+       int sum = 0;
+       for (p = proc; p < &proc[NPROC]; p++) {
+           if (p->state == RUNNABLE) {
+               sum += p->tickets;
+               //printf("pid: %d, tickets: %d, sum: %d, win_tickets: %d, ticks: %d, status: %d \n", p->pid, p->tickets, sum, winning_ticket, p->ticks, p->state);
+               if (sum > winning_ticket) {
+                   break;
+               }
+           }
+       }
+ 
+       acquire(&p->lock);
+       if (p->state == RUNNABLE) {
+         //printf("winner pid: %d sum: %d, win_tickets: %d \n", p->pid, sum, winning_ticket);
+         c->proc = p;
+         p->state = RUNNING;
+         p->ticks++;
+         swtch(&c->context, &p->context);
+         //printf("finish running %d \n", p->pid);
+         c->proc = 0;
+       }
+       release(&p->lock);
 
     #elif defined(STRIDE)
+      int min_pass = INT_MAX;
+      struct proc *chosen = NULL;
+      for(p = proc; p < &proc[NPROC]; p++)
+          if (p->state == RUNNABLE && p->pass < min_pass) {
+              min_pass = p->pass;
+              chosen = p;
+          }
+      if (chosen) {
+          p = chosen;
+          acquire(&p->lock);
+          p->pass += p->stride;
+          p->state = RUNNING;
+          p->ticks += 1;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          c->proc = 0;
+          release(&p->lock);
+      }
       //printf("SThis is the log for initialize scheduler STRIDE\n");
-      int min_stride = INT_MAX;
-      int K = 10000;
-      struct proc *min_p = 0;
-      
-      for (p = proc; p < &proc[NPROC]; p++) {
-          if (p->state == RUNNABLE) {
-            if (p->stride < min_stride) {
-                min_stride = p->stride;
-                min_p = p;
-            }
-          }
-      }
+      // int min_stride = INT_MAX;
+      // int K = 10000;
+      // struct proc *min_p = 0;
+      // 
+      // for (p = proc; p < &proc[NPROC]; p++) {
+      //     if (p->state == RUNNABLE) {
+      //       if (p->stride < min_stride) {
+      //           min_stride = p->stride;
+      //           min_p = p;
+      //       }
+      //     }
+      // }
      
-      if (min_p != 0) {
-          acquire(&min_p->lock);
-          //printf("winning pid %d, p_stride %d, min_stride %d \n", min_p->pid, min_p->stride, min_stride);
-          if (min_p->state == RUNNABLE) {
-            min_p->stride += K / min_p->tickets;
-            c->proc = min_p;
-            min_p->state = RUNNING;
-            min_p->ticks++;
-            swtch(&c->context, &min_p->context);
-            c->proc = 0;
-          }
-          release(&min_p->lock);
-      }
+      // if (min_p != 0) {
+      //     acquire(&min_p->lock);
+      //     //printf("winning pid %d, p_stride %d, min_stride %d \n", min_p->pid, min_p->stride, min_stride);
+      //     if (min_p->state == RUNNABLE) {
+      //       min_p->stride += K / min_p->tickets;
+      //       c->proc = min_p;
+      //       min_p->state = RUNNING;
+      //       min_p->ticks++;
+      //       swtch(&c->context, &min_p->context);
+      //       c->proc = 0;
+      //     }
+      //     release(&min_p->lock);
+      // }
       
     #else
       //printf("SThis is the log for initialize scheduler RR\n");
@@ -605,7 +627,6 @@ scheduler(void)
         release(&p->lock);
       }
     #endif
-
   }
 }
 
