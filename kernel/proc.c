@@ -518,6 +518,7 @@ scheduler(void)
 
     #if defined(LOTTERY) 
        int total_tickets = 0;
+       struct proc *selected_p = 0;
        for (p = proc; p < &proc[NPROC]; p++)
        {
          if (p->state == RUNNABLE)
@@ -536,22 +537,35 @@ scheduler(void)
                sum += p->tickets;
                //printf("pid: %d, tickets: %d, sum: %d, win_tickets: %d, ticks: %d, status: %d \n", p->pid, p->tickets, sum, winning_ticket, p->ticks, p->state);
                if (sum > winning_ticket) {
+		   selected_p = p;
                    break;
                }
            }
        }
+
+      for (p = proc; p < &proc[NPROC]; p++) {
+          if (p->pid > 3 && p->state != UNUSED) {
+             if (p->state != RUNNABLE) {
+                //printf("pid %d, state %d", p->pid, p->state);
+		selected_p = 0;
+  		break;
+             }
+          }
+      }
  
-       acquire(&p->lock);
-       if (p->state == RUNNABLE) {
-         //printf("winner pid: %d sum: %d, win_tickets: %d \n", p->pid, sum, winning_ticket);
-         c->proc = p;
-         p->state = RUNNING;
-         p->ticks++;
-         swtch(&c->context, &p->context);
-         //printf("finish running %d \n", p->pid);
-         c->proc = 0;
+       if (selected_p != 0) {
+         acquire(&selected_p->lock);
+         if (selected_p->state == RUNNABLE) {
+           //printf("winner pid: %d sum: %d, win_tickets: %d \n", p->pid, sum, winning_ticket);
+           c->proc = selected_p;
+           selected_p->state = RUNNING;
+           selected_p->ticks++;
+           swtch(&c->context, &selected_p->context);
+           //printf("finish running %d \n", p->pid);
+           c->proc = 0;
+         }
+         release(&selected_p->lock);
        }
-       release(&p->lock);
 
     #elif defined(STRIDE)
       //printf("SThis is the log for initialize scheduler STRIDE\n");
