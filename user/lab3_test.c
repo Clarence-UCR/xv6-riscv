@@ -11,7 +11,6 @@ void* thread_fn(void *arg) {
     int done = 0;
 
     while (!done) {
-        printf("acquire own designed lock");
         lock_acquire(&lock);
         if (cur_pass >= n_passes)
             done = 1;
@@ -39,7 +38,6 @@ int main(int argc, char *argv[]) {
     lock_init(&lock);
 
     for (int i = 0; i < n_threads; i++) {
-        printf("starting create thread %d \n", i);
         thread_create(thread_fn, (void*)(uint64)i);
     }
 

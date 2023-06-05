@@ -214,9 +214,13 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable && p->is_thread != 1)
     proc_freepagetable(p->pagetable, p->sz);
-  if (p->is_thread != 1) {
-    p->pagetable = 0;
-  }
+
+  if(p->pagetable && p->is_thread == 1)
+    uvmunmap(p->pagetable, TRAPFRAME-PGSIZE * p->thread_id, 1, 0);
+
+  //Important! We should cut the pagetable reference with parent
+  //This is not delete the pagetable and it is just cut the reference
+  p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -373,7 +377,6 @@ int clone(void *stack) {
   struct proc *np;
   struct proc *p = myproc();
 
-  printf("This is received stack %d\n", stack);
   if (stack == NULL){
     return -1;
   }
@@ -410,14 +413,10 @@ int clone(void *stack) {
   // set thread trapframe 
   uint64 trapframe_user_addr;
   trapframe_user_addr = TRAPFRAME - PGSIZE * np->thread_id;
-  printf("mappages trapframe_user_addr %d \n", trapframe_user_addr);
   if(mappages(np->pagetable, trapframe_user_addr, PGSIZE,
               (uint64)(np->trapframe), PTE_R | PTE_W) < 0){
-    printf("mappages fail\n");
     return 0;
   }
-
-  printf("mappages success\n");
   
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -440,8 +439,6 @@ int clone(void *stack) {
   np->state = RUNNABLE;
   release(&np->lock);
   
-  printf("returning pid %d \n", pid);
-
   return pid;
 }
 

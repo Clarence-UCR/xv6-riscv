@@ -38,7 +38,6 @@ sys_clone(void)
   void *stack;
   argaddr(0, (void*)&stack);
   pid = clone(stack);
-  printf("sysproc returning %d \n", pid);
   return pid;
 }
 
