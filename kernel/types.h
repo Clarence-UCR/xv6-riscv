@@ -14,3 +14,6 @@ struct pinfo {
   int page_usage;          // number of memory pages used by this process
 };
 
+struct lock_t {
+  uint locked; 
+};

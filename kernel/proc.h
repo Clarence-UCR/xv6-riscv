@@ -111,4 +111,7 @@ struct proc {
   int stride;
   int ticks;
 
+  int thread_id;
+  int is_thread;
+
 };

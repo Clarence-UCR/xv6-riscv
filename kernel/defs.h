@@ -188,6 +188,9 @@ void            virtio_disk_intr(void);
 //info
 int             info(int);
 
+//clone
+int 		clone(void *stack);
+
 void		sched_tickets(int);
 void		sched_statistics(void);
 

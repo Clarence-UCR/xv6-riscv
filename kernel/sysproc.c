@@ -32,6 +32,17 @@ sys_sched_tickets(void)
 }
 
 uint64
+sys_clone(void) 
+{
+  int pid;
+  void *stack;
+  argaddr(0, (void*)&stack);
+  pid = clone(stack);
+  printf("sysproc returning %d \n", pid);
+  return pid;
+}
+
+uint64
 sys_info(void)
 {
   int n;

@@ -212,9 +212,11 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
-  if(p->pagetable)
+  if(p->pagetable && p->is_thread != 1)
     proc_freepagetable(p->pagetable, p->sz);
-  p->pagetable = 0;
+  if (p->is_thread != 1) {
+    p->pagetable = 0;
+  }
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -326,6 +328,121 @@ growproc(int n)
   }
   p->sz = sz;
   return 0;
+}
+
+static struct proc*
+allocproc_thread(void)
+{
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == UNUSED) {
+      goto found;
+    } else {
+      release(&p->lock);
+    }
+  }
+  return 0;
+
+found:
+  p->pid = allocpid();
+  p->state = USED;
+
+  // Allocate a trapframe page.
+  if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
+  // Set up new context to start executing at forkret,
+  // which returns to user space.
+  memset(&p->context, 0, sizeof(p->context));
+  p->context.ra = (uint64)forkret;
+  p->context.sp = p->kstack + PGSIZE;
+  
+  p->syscall_count = 0;
+  p->tickets = 10000;
+
+  return p;
+}
+
+int clone(void *stack) {
+  int i, pid;
+  struct proc *np;
+  struct proc *p = myproc();
+
+  printf("This is received stack %d\n", stack);
+  if (stack == NULL){
+    return -1;
+  }
+
+  // Allocate process.
+  if((np = allocproc_thread()) == 0){
+    return -1;
+  }
+
+  // share memory with parent
+  np->pagetable = p->pagetable;
+
+  // set memory size
+  np->sz = p->sz;
+
+  // copy saved user registers.
+  *(np->trapframe) = *(p->trapframe);
+
+  // set stack pointer
+  np->trapframe->sp = (uint64) (stack + PGSIZE);
+
+  // Cause fork to return 0 in the child.
+  np->trapframe->a0 = 0;
+
+  // set thread id
+  if (p->thread_id == 0) {
+    p->thread_id = 1;
+  } else {
+    p->thread_id++;
+  }
+  np->thread_id = p->thread_id;
+  np->is_thread = 1;
+ 
+  // set thread trapframe 
+  uint64 trapframe_user_addr;
+  trapframe_user_addr = TRAPFRAME - PGSIZE * np->thread_id;
+  printf("mappages trapframe_user_addr %d \n", trapframe_user_addr);
+  if(mappages(np->pagetable, trapframe_user_addr, PGSIZE,
+              (uint64)(np->trapframe), PTE_R | PTE_W) < 0){
+    printf("mappages fail\n");
+    return 0;
+  }
+
+  printf("mappages success\n");
+  
+  // increment reference counts on open file descriptors.
+  for(i = 0; i < NOFILE; i++)
+    if(p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  np->cwd = idup(p->cwd);
+
+  safestrcpy(np->name, p->name, sizeof(p->name));
+
+  pid = np->pid;
+  np->page_usage = np->sz / PGSIZE;
+
+  release(&np->lock);
+  
+  acquire(&wait_lock);
+  np->parent = p;
+  release(&wait_lock);
+
+  acquire(&np->lock);
+  np->state = RUNNABLE;
+  release(&np->lock);
+  
+  printf("returning pid %d \n", pid);
+
+  return pid;
 }
 
 // Create a new process, copying the parent.
